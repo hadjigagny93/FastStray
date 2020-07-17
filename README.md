@@ -1,5 +1,5 @@
 # FastStray
-A Implementation Of Faststray Trajectory Reduction Algorithm
+An Implementation Of Faststray Trajectory Reduction Algorithm
 
 
 Go to arxiv for more details:
