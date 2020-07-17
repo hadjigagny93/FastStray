@@ -1,8 +1,11 @@
+
+
 import numpy as np 
 import pandas as pd
 from dataclasses import dataclass 
 import matplotlib.pyplot as plt 
 from  scipy.stats import pearsonr as corr
+
 @dataclass 
 class FastStray:
     """A global class that implements faststray algorithms for reduction GPS data point in a given trajectory 
@@ -10,6 +13,7 @@ class FastStray:
     
     attributes
     ----------
+    test: used for introducing error during test step, must be set to 0 when position is given as argument
     alpha: size of the moving average filter 
     beta: size of the neighborhood to measure the correaltion coef
     gamma: size of the neighboorhood to perform the non maximum suppression
@@ -27,6 +31,8 @@ class FastStray:
     update_filtering_position: return of MA methods 
     get_params_idx: return intervall which one apply MA algorithm on -- this allows specifying windows for inference
     """
+    space: int = 2
+    time: int = 1
     test_coeff: int = 1
     alpha: float = 20
     beta: float = 20
@@ -36,30 +42,36 @@ class FastStray:
     sample_size: int = position.shape[0]
     coeff: np.ndarray = np.zeros(sample_size)
     max_coeff: np.ndarray = np.zeros(sample_size)
-    spatial_dim: tuple = (sample_size, 2)
-    temporal_dim: tuple = (sample_size, 1)
-
+    spatial_dim: tuple = (sample_size, space)
+    temporal_dim: tuple = (sample_size, time)
 
     def moving_average(self):
-        """Calculate the trajectory 𝑇-1 (composed by a list of points 𝑃1 and time stamps 𝑆1) using moving average filter 
-        -- alpha param defining the window of the filter -- the filter is computing on the whole trajectory 
+        """Calculate the trajectory 𝑇-1 (composed by a list of points 𝑃1 and time
+         stamps 𝑆1) using moving average filter -- alpha param defining the window 
+         of the filter -- the filter is computing on the whole trajectory 
         """
-        self.spatial_position = self.position[:,0:2]
-        self.temporal_position = self.position[:, 2].reshape(-1, 1)
-        j_index = list(map(self.get_params_idx, range(self.sample_size), [self.alpha]*self.sample_size, [self.sample_size]*self.sample_size))
-        new_spatial_position = np.array(list(map(self.mean_position, self.spatial_position, j_index)))
+        self.spatial_position = self.position[:,:self.space]
+        self.temporal_position = self.position[:,self.space].reshape(-1, 1)
+        j_index = map(self.get_params_idx, range(self.sample_size), [self.alpha]*self.sample_size, [self.sample_size]*self.sample_size)
+        new_spatial_position = np.array([*map(self.mean_position, j_index)])
         self.filtering_spatial_position, self.filtering_temporal_position = new_spatial_position, self.temporal_position
+
+    def mean_position(self, index):
+        """return average spatial position"""
+        return self.spatial_position[index,:].mean(axis=0)
+
+    def sub_spatial_array(self, index):
+        return self.filtering_spatial_position[index,:]
     
-    @staticmethod
-    def mean_position(arr, index):
-        return arr[index,:].mean(axis=0)
+    def sub_temporal_array(self, index):
+        return self.filtering_temporal_position[index,:]
+
 
     def update_coeff(self):
-        for i in range(self.sample_size):
-            j_index = self.get_params_idx(idx=i, value=self.beta, sample_size=self.sample_size)
-            p_mu = self.filtering_spatial_position[j_index,:]
-            t_mu = self.filtering_temporal_position[j_index,:]
-            self.coeff[i] = self.ksi_func(p_mu, t_mu)
+        j_index = [*map(self.get_params_idx, range(self.sample_size), [self.beta]*self.sample_size, [self.sample_size]*self.sample_size)]
+        p_mu = map(self.sub_spatial_array, j_index)
+        t_mu = map(self.sub_temporal_array, j_index)
+        self.coeff = [*map(self.ksi_func, p_mu, t_mu)]
 
     def update_max_coeff(self):
         for i in range(self.sample_size):
@@ -67,9 +79,9 @@ class FastStray:
             self.max_coeff[i] = max(map(self.coeff.__getitem__, j_index))
 
     def simplified_trajectory(self):
-        final_index = np.where(self.max_coeff == self.coeff)[0]
-        self.simplified_spatial_position = self.filtering_spatial_position[final_index,:]
-        self.simplified_temporal_position = self.filtering_temporal_position[final_index,:]
+        compress_index = np.where(self.max_coeff == self.coeff)[0]
+        self.simplified_spatial_position = self.filtering_spatial_position[compress_index,:]
+        self.simplified_temporal_position = self.filtering_temporal_position[compress_index,:]
 
     def run(self):
         self.moving_average()
@@ -94,3 +106,5 @@ class FastStray:
         rat_x = corr(ppx, tt.flatten())[0] ** 2
         rat_y = corr(ppy, tt.flatten())[0] ** 2
         return 1./ rat_x + 1./ rat_y
+
+    
