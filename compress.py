@@ -28,11 +28,11 @@ class FastStray:
     get_params_idx: return intervall which one apply MA algorithm on -- this allows specifying windows for inference
 
     """
-    test_coeff: int = 1
+    test: int = 1
     alpha: float = 20
     beta: float = 20
     gamma: float = 20
-    error: np.ndarray = np.random.exponential(0.1, (1000, 3)) * test_coeff
+    error: np.ndarray = np.random.exponential(0.1, (1000, 3)) * test
     position: np.ndarray = np.vstack([np.linspace(-3, 3, 1000), np.sin(3*np.linspace(-3, 3, 1000)), np.linspace(0, 1, 1000)]).T + error 
     sample_size: int = position.shape[0]
     coeff: np.ndarray = np.zeros(sample_size)
