@@ -31,17 +31,13 @@ class FastStray:
     update_filtering_position: return of MA methods 
     get_params_idx: return intervall which one apply MA algorithm on -- this allows specifying windows for inference
     """
+    params: dict
     space: int = 2
     time: int = 1
     test_coeff: int = 1
-    alpha: float = 20
-    beta: float = 20
-    gamma: float = 20
     error: np.ndarray = np.random.exponential(0.1, (1000, 3)) * test_coeff
     position: np.ndarray = np.vstack([np.linspace(-3, 3, 1000), np.sin(3*np.linspace(-3, 3, 1000)), np.linspace(0, 1, 1000)]).T + error 
     sample_size: int = position.shape[0]
-    coeff: np.ndarray = np.zeros(sample_size)
-    max_coeff: np.ndarray = np.zeros(sample_size)
     spatial_dim: tuple = (sample_size, space)
     temporal_dim: tuple = (sample_size, time)
 
@@ -52,34 +48,38 @@ class FastStray:
         """
         self.spatial_position = self.position[:,:self.space]
         self.temporal_position = self.position[:,self.space].reshape(-1, 1)
-        j_index = map(self.get_params_idx, range(self.sample_size), [self.alpha]*self.sample_size, [self.sample_size]*self.sample_size)
-        new_spatial_position = np.array([*map(self.mean_position, j_index)])
+        idx = self.get_index(param='alpha')
+        new_spatial_position = np.array([*map(self.mean_position, idx)])
         self.filtering_spatial_position, self.filtering_temporal_position = new_spatial_position, self.temporal_position
 
     def mean_position(self, index):
         """return average spatial position"""
         return self.spatial_position[index,:].mean(axis=0)
-
+    
     def sub_spatial_array(self, index):
         return self.filtering_spatial_position[index,:]
     
     def sub_temporal_array(self, index):
         return self.filtering_temporal_position[index,:]
 
+    def sub_coeff(self, index):
+        return max(map(self.coeff.__getitem__, index))
+
+    def get_index(self, param):
+        return [*map(self.get_params_idx, range(self.sample_size), [self.params[param]]*self.sample_size, [self.sample_size]*self.sample_size)]
 
     def update_coeff(self):
-        j_index = [*map(self.get_params_idx, range(self.sample_size), [self.beta]*self.sample_size, [self.sample_size]*self.sample_size)]
-        p_mu = map(self.sub_spatial_array, j_index)
-        t_mu = map(self.sub_temporal_array, j_index)
+        idx = self.get_index(param='beta')
+        p_mu = map(self.sub_spatial_array, idx)
+        t_mu = map(self.sub_temporal_array, idx)
         self.coeff = [*map(self.ksi_func, p_mu, t_mu)]
 
     def update_max_coeff(self):
-        for i in range(self.sample_size):
-            j_index = self.get_params_idx(idx=i, value=self.gamma, sample_size=self.sample_size)
-            self.max_coeff[i] = max(map(self.coeff.__getitem__, j_index))
+        idx = self.get_index(param='gamma')
+        self.max_coeff = [*map(self.sub_coeff, idx)]
 
     def simplified_trajectory(self):
-        compress_index = np.where(self.max_coeff == self.coeff)[0]
+        compress_index = np.where(np.array(self.max_coeff) == np.array(self.coeff))[0]
         self.simplified_spatial_position = self.filtering_spatial_position[compress_index,:]
         self.simplified_temporal_position = self.filtering_temporal_position[compress_index,:]
 
@@ -106,5 +106,19 @@ class FastStray:
         rat_x = corr(ppx, tt.flatten())[0] ** 2
         rat_y = corr(ppy, tt.flatten())[0] ** 2
         return 1./ rat_x + 1./ rat_y
-
     
+  
+    def compression_rate(self):
+        return 1. - (len(self.simplified_temporal_position) / len(self.temporal_position))
+
+        
+
+def main():
+    fst = FastStray(params={'alpha':10, 'beta': 10, 'gamma': 10})
+    fst.run()
+    print(f"compression rate is about: {fst.compression_rate()}")
+    #plt.scatter(fst.simplified_spatial_position[:, 0], fst.simplified_spatial_position[:, 1])
+
+
+if __name__ == "__main__":
+    main()ython 
