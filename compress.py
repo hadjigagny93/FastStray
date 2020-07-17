@@ -45,10 +45,10 @@ class FastStray:
         return True 
 
     def moving_average(self):
-        _ = self.split_position()
         """Calculate the trajectory 𝑇-1 (composed by a list of points 𝑃1 and time stamps 𝑆1) using moving average filter 
         -- alpha param defining the window of the filter -- the filter is computing on the whole trajectory 
         """
+        _ = self.split_position()
         j_index = list(map(self.get_params_idx, range(self.sample_size), [self.alpha]*self.sample_size, [self.sample_size]*self.sample_size))
         new_spatial_position = np.array(list(map(self.mean_position, self.spatial_position, j_index)))
         self.filtering_spatial_position, self.filtering_temporal_position = new_spatial_position, self.temporal_position
@@ -62,7 +62,7 @@ class FastStray:
             j_index = self.get_params_idx(idx=i, value=self.beta, sample_size=self.sample_size)
             p_mu = self.filtering_spatial_position[j_index,:]
             t_mu = self.filtering_temporal_position[j_index,:]
-            self.coeff[i] = self.ksi_func(P_mu, t_mu)
+            self.coeff[i] = self.ksi_func(p_mu, t_mu)
 
     def update_max_coeff(self):
         for i in range(self.sample_size):
