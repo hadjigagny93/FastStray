@@ -1,8 +1,8 @@
 import numpy as np 
 import pandas as pd
-from dataclasses import dataclass  
+from dataclasses import dataclass 
+import matplotlib.pyplot as plt 
 from  scipy.stats import pearsonr as corr
-
 @dataclass 
 class FastStray:
     """A global class that implements faststray algorithms for reduction GPS data point in a given trajectory 
@@ -26,13 +26,12 @@ class FastStray:
     moving_average_smooth_trajectory: moving average 
     update_filtering_position: return of MA methods 
     get_params_idx: return intervall which one apply MA algorithm on -- this allows specifying windows for inference
-
     """
-    test: int = 1
+    test_coeff: int = 1
     alpha: float = 20
     beta: float = 20
     gamma: float = 20
-    error: np.ndarray = np.random.exponential(0.1, (1000, 3)) * test
+    error: np.ndarray = np.random.exponential(0.1, (1000, 3)) * test_coeff
     position: np.ndarray = np.vstack([np.linspace(-3, 3, 1000), np.sin(3*np.linspace(-3, 3, 1000)), np.linspace(0, 1, 1000)]).T + error 
     sample_size: int = position.shape[0]
     coeff: np.ndarray = np.zeros(sample_size)
@@ -48,20 +47,20 @@ class FastStray:
     def moving_average(self):
         _ = self.split_position()
         """Calculate the trajectory 𝑇-1 (composed by a list of points 𝑃1 and time stamps 𝑆1) using moving average filter 
-        -- alpha param defining the window of the filter -- the filter is computing on the whole trajectory """
-        new_spatial_position = np.zeros(self.spatial_dim) # init positions to zero
-        for i in range(self.sample_size):
-            j_index = self.get_params_idx(idx=i, value=self.alpha, sample_size=self.sample_size)
-            new_spatial_position[i] = self.spatial_position[j_index,:].mean(axis=0)
-        return new_spatial_position, self.temporal_position
-
-    def update_filtering_position(self):
-        self.filtering_spatial_position, self.filtering_temporal_position = self.moving_average()
+        -- alpha param defining the window of the filter -- the filter is computing on the whole trajectory 
+        """
+        j_index = list(map(self.get_params_idx, range(self.sample_size), [self.alpha]*self.sample_size, [self.sample_size]*self.sample_size))
+        new_spatial_position = np.array(list(map(self.mean_position, self.spatial_position, j_index)))
+        self.filtering_spatial_position, self.filtering_temporal_position = new_spatial_position, self.temporal_position
+    
+    @staticmethod
+    def mean_position(arr, index):
+        return arr[index,:].mean(axis=0)
 
     def update_coeff(self):
         for i in range(self.sample_size):
             j_index = self.get_params_idx(idx=i, value=self.beta, sample_size=self.sample_size)
-            P_mu = self.filtering_spatial_position[j_index,:]
+            p_mu = self.filtering_spatial_position[j_index,:]
             t_mu = self.filtering_temporal_position[j_index,:]
             self.coeff[i] = self.ksi_func(P_mu, t_mu)
 
@@ -76,7 +75,7 @@ class FastStray:
         self.simplified_temporal_position = self.filtering_temporal_position[final_index,:]
 
     def run(self):
-        self.update_filtering_position()
+        self.moving_average()
         self.update_coeff()
         self.update_max_coeff()
         self.simplified_trajectory()
@@ -85,7 +84,13 @@ class FastStray:
     def get_params_idx(idx, value, sample_size):
         inf, sup = max(0, idx - value), min(idx + value, sample_size)
         return np.arange(inf, sup)
-        
+
+    @staticmethod
+    def plot_average_filtering_deviation(init, avg):
+        """ init is the noisy trajectory, avg the filter one """
+        plt.scatter(avg[:, 0], avg[:, 1])
+        plt.scatter(init[:, 0], init[:, 1], color='r')
+
     @staticmethod
     def ksi_func(pp, tt):
         ppx, ppy = pp.T
