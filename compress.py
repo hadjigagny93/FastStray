@@ -39,16 +39,13 @@ class FastStray:
     spatial_dim: tuple = (sample_size, 2)
     temporal_dim: tuple = (sample_size, 1)
 
-    def split_position(self):
-        self.spatial_position = self.position[:,0:2]
-        self.temporal_position = self.position[:, 2].reshape(-1, 1)
-        return True 
 
     def moving_average(self):
         """Calculate the trajectory 𝑇-1 (composed by a list of points 𝑃1 and time stamps 𝑆1) using moving average filter 
         -- alpha param defining the window of the filter -- the filter is computing on the whole trajectory 
         """
-        _ = self.split_position()
+        self.spatial_position = self.position[:,0:2]
+        self.temporal_position = self.position[:, 2].reshape(-1, 1)
         j_index = list(map(self.get_params_idx, range(self.sample_size), [self.alpha]*self.sample_size, [self.sample_size]*self.sample_size))
         new_spatial_position = np.array(list(map(self.mean_position, self.spatial_position, j_index)))
         self.filtering_spatial_position, self.filtering_temporal_position = new_spatial_position, self.temporal_position
